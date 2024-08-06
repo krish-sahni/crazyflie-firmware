@@ -270,7 +270,7 @@ static void i2cdrvTryToRestartBus(I2cDrv* i2c)
   I2C_ITConfig(i2c->def->i2cPort, I2C_IT_ERR, ENABLE);
 
   NVIC_InitStructure.NVIC_IRQChannel = i2c->def->i2cEVIRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = NVIC_HIGH_PRI;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = NVIC_I2C_PRI;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
@@ -305,7 +305,7 @@ static void i2cdrvDmaSetupBus(I2cDrv* i2c)
   i2c->DMAStruct.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
 
   NVIC_InitStructure.NVIC_IRQChannel = i2c->def->dmaRxIRQ;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = NVIC_HIGH_PRI;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = NVIC_I2C_PRI;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
@@ -623,21 +623,20 @@ static void i2cdrvClearDMA(I2cDrv* i2c)
 
 static void i2cdrvDmaIsrHandler(I2cDrv* i2c)
 {
-  if (DMA_GetFlagStatus(i2c->def->dmaRxStream, i2c->def->dmaRxTCFlag)) // Transfer complete
-  {
-    i2cdrvClearDMA(i2c);
-    i2cNotifyClient(i2c);
-    // Are there any other messages to transact?
-    i2cTryNextMessage(i2c);
-  }
   if (DMA_GetFlagStatus(i2c->def->dmaRxStream, i2c->def->dmaRxTEFlag)) // Transfer error
   {
     DMA_ClearITPendingBit(i2c->def->dmaRxStream, i2c->def->dmaRxTEFlag);
     //TODO: Best thing we could do?
     i2c->txMessage.status = i2cNack;
-    i2cNotifyClient(i2c);
-    i2cTryNextMessage(i2c);
   }
+  if (DMA_GetFlagStatus(i2c->def->dmaRxStream, i2c->def->dmaRxTCFlag)) // Transfer complete
+  {
+    i2c->txMessage.status = i2cAck;
+  }
+  i2cdrvClearDMA(i2c);
+  i2cNotifyClient(i2c);
+  // Are there any other messages to transact?
+  i2cTryNextMessage(i2c);
 }
 
 

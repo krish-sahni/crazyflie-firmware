@@ -47,6 +47,8 @@
 
 static CPXPacket_t cpxRx;
 
+static volatile cpxAppMessageHandlerCallback_t appMessageHandlerCallback;
+
 #define WIFI_SET_SSID_CMD         0x10
 #define WIFI_SET_KEY_CMD          0x11
 
@@ -65,6 +67,29 @@ void cpxInitRoute(const CPXTarget_t source, const CPXTarget_t destination, const
     route->source = source;
     route->destination = destination;
     route->function = function;
+    route->version = CPX_VERSION;
+}
+
+bool cpxCheckVersion(const uint8_t version) {
+  static bool hasLoggedVersionMismatch = false;
+
+  // Version mismatch is generally handled by ignoring messages and logging the problem once.
+  // Asserting has turned out to be a bad idea as it prevents flashing new firmware in some cases.
+
+  const bool isVersionOk = (version == CPX_VERSION);
+
+  if (!isVersionOk) {
+    if (!hasLoggedVersionMismatch) {
+      DEBUG_PRINT("WARNING! CPX version mismatch. Got %i, require %i\n", version, CPX_VERSION);
+      hasLoggedVersionMismatch = true;
+    }
+  }
+
+  return isVersionOk;
+}
+
+void cpxRegisterAppMessageHandler(cpxAppMessageHandlerCallback_t callback) {
+  appMessageHandlerCallback = callback;
 }
 
 static void cpx(void* _param) {
@@ -126,6 +151,11 @@ static void cpx(void* _param) {
           }
         }
         break;
+      case CPX_F_APP:
+        if (appMessageHandlerCallback) {
+          appMessageHandlerCallback(&cpxRx);
+        }
+        break;
       default:
         DEBUG_PRINT("Not handling function [0x%02X] from [0x%02X]\n", cpxRx.route.function, cpxRx.route.source);
     }
@@ -133,5 +163,5 @@ static void cpx(void* _param) {
 }
 
 void cpxInit() {
-  xTaskCreate(cpx, "CPX", AI_DECK_TASK_STACKSIZE, NULL, AI_DECK_TASK_PRI, NULL);
+  xTaskCreate(cpx, CPX_TASK_NAME, AI_DECK_TASK_STACKSIZE, NULL, AI_DECK_TASK_PRI, NULL);
 }
