@@ -217,6 +217,14 @@ typedef struct control_s {
 
     // controlModeForce
     float normalizedForces[STABILIZER_NR_OF_MOTORS]; // 0.0 ... 1.0
+
+    // Allow AE483 controllers to specify motor power commands
+    struct {
+      uint16_t m1;
+      uint16_t m2;
+      uint16_t m3;
+      uint16_t m4;
+    };
   };
 
   control_mode_t controlMode;

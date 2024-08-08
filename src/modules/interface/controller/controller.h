@@ -35,11 +35,11 @@ typedef enum {
   ControllerTypeINDI,
   ControllerTypeBrescianini,
   ControllerTypeLee,
+  ControllerTypeAE483,
 #ifdef CONFIG_CONTROLLER_OOT
   ControllerTypeOot,
 #endif
   ControllerType_COUNT,
-  ControllerTypeAE483,
 } ControllerType;
 
 void controllerInit(ControllerType controller);

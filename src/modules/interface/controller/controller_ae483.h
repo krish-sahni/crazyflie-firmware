@@ -13,10 +13,10 @@ struct AE483Data
 
 void controllerAE483Init(void);
 bool controllerAE483Test(void);
-void controllerAE483(control_t *control, setpoint_t *setpoint,
+void controllerAE483(control_t *control, const setpoint_t *setpoint,
                                          const sensorData_t *sensors,
                                          const state_t *state,
-                                         const uint32_t tick);
+                                         const stabilizerStep_t stabilizerStep);
 
 // Functions to receive measurements
 void ae483UpdateWithTOF(tofMeasurement_t *tof);

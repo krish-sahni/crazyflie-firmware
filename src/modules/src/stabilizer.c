@@ -247,6 +247,19 @@ static void logCapWarning(const bool isCapped) {
 }
 
 static void controlMotors(const control_t* control) {
+  // AE483 controllers generate motor power commands that we apply here.
+  // 
+  if (controllerType == ControllerTypeAE483) {
+    motorsSetRatio(MOTOR_M1, control->m1);
+    motorsSetRatio(MOTOR_M2, control->m2);
+    motorsSetRatio(MOTOR_M3, control->m3);
+    motorsSetRatio(MOTOR_M4, control->m4);
+    return;
+  }
+  //
+  // Other controllers generate other sorts of commands, which are then
+  // converted to motor power commands in the following lines of code.
+
   powerDistribution(control, &motorThrustUncapped);
   batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
   const bool isCapped = powerDistributionCap(&motorThrustBatCompUncapped, &motorPwm);

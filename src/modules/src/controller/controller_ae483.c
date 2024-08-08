@@ -99,23 +99,21 @@ bool controllerAE483Test(void)
 }
 
 void controllerAE483(control_t *control,
-                     setpoint_t *setpoint,
+                     const setpoint_t *setpoint,
                      const sensorData_t *sensors,
                      const state_t *state,
-                     const uint32_t tick)
+                     const stabilizerStep_t stabilizerStep)
 {
-  if (RATE_DO_EXECUTE(ATTITUDE_RATE, tick)) {
-    // Whatever is in here executes at 500 Hz
-
+  // Make sure this function only runs at 500 Hz
+  if (!RATE_DO_EXECUTE(ATTITUDE_RATE, stabilizerStep)) {
+    return;
   }
 
-  if (RATE_DO_EXECUTE(POSITION_RATE, tick)) {
-    // Whatever is in here executes at 100 Hz
-
-  }
-
-  // By default, we do nothing (set all motor power commands to zero)
-  powerSet(0, 0, 0, 0);
+  // Set all four motor power commands to zero
+  control->m1 = 10000;
+  control->m2 = 0;
+  control->m3 = 0;
+  control->m4 = 0;
 }
 
 //              1234567890123456789012345678 <-- max total length

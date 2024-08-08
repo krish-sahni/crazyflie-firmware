@@ -66,23 +66,8 @@ uint16_t powerDistributionStopRatio(uint32_t id)
   return 0;
 }
 
-static bool motorSetEnable = false;
-motors_thrust_t motorPowerSet;
-
-void powerSet(uint16_t m1, uint16_t m2, uint16_t m3, uint16_t m4) {
-  motorPowerSet.m1 = m1;
-  motorPowerSet.m2 = m2;
-  motorPowerSet.m3 = m3;
-  motorPowerSet.m4 = m4;
-}
-
 void powerDistributionInit(void)
 {
-  motorPowerSet.m1 = 0;
-  motorPowerSet.m2 = 0;
-  motorPowerSet.m3 = 0;
-  motorPowerSet.m4 = 0;
-  
   #if (!defined(CONFIG_MOTORS_REQUIRE_ARMING) || (CONFIG_MOTORS_REQUIRE_ARMING == 0))
   if(idleThrust > 0) {
     DEBUG_PRINT("WARNING: idle thrust will be overridden with value 0. Autoarming can not be on while idle thrust is higher than 0. If you want to use idle thust please use use arming\n");
@@ -106,16 +91,6 @@ static uint16_t capMinThrust(float thrust, uint32_t minThrust) {
 
 static void powerDistributionLegacy(const control_t *control, motors_thrust_uncapped_t* motorThrustUncapped)
 {
-  if (motorSetEnable)
-  {
-    motorPower->m1 = motorPowerSet.m1;
-    motorPower->m2 = motorPowerSet.m2;
-    motorPower->m3 = motorPowerSet.m3;
-    motorPower->m4 = motorPowerSet.m4;
-
-    return;
-  }
-
   int16_t r = control->roll / 2.0f;
   int16_t p = control->pitch / 2.0f;
 
@@ -231,15 +206,6 @@ PARAM_GROUP_START(powerDist)
  * common value is between 3000 - 6000.
  */
 PARAM_ADD_CORE(PARAM_UINT32 | PARAM_PERSISTENT, idleThrust, &idleThrust)
-/**
- * @brief Allow override of motor power commands (default: 0)
- *
- * This enables the use of powerSet() to set motor
- * power commands directly, rather than through the
- * use of control->thrust, control->roll, etc. This
- * is done by the AE483 controller, for example.
- */
-PARAM_ADD(PARAM_UINT8, motorSetEnable, &motorSetEnable)
 PARAM_GROUP_STOP(powerDist)
 
 /**
