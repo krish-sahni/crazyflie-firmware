@@ -15,8 +15,9 @@ static uint16_t flow_count = 0;
 static float flow_dpixelx = 0.0f;
 static float flow_dpixely = 0.0f;
 
-// An example parameter
+// Parameters
 static bool use_observer = false;
+static bool reset_observer = false;
 
 
 void ae483UpdateWithTOF(tofMeasurement_t *tof)
@@ -127,4 +128,5 @@ LOG_GROUP_STOP(ae483log)
 //                group   .name
 PARAM_GROUP_START(ae483par)
 PARAM_ADD(PARAM_UINT8,     use_observer,            &use_observer)
+PARAM_ADD(PARAM_UINT8,     reset_observer,          &reset_observer)
 PARAM_GROUP_STOP(ae483par)
