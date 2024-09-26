@@ -111,7 +111,7 @@ void controllerAE483(control_t *control,
   }
 
   // Set all four motor power commands to zero
-  control->m1 = 10000;
+  control->m1 = 0;
   control->m2 = 0;
   control->m3 = 0;
   control->m4 = 0;
