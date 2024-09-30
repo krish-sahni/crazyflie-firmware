@@ -20,6 +20,47 @@ static bool use_observer = false;
 static bool reset_observer = false;
 
 
+// State
+static float p_x = 0.0f;
+static float p_y = 0.0f;
+static float p_z = 0.0f;
+static float psi = 0.0f;
+static float theta = 0.0f;
+static float phi = 0.0f;
+static float v_x = 0.0f;
+static float v_y = 0.0f;
+static float v_z = 0.0f;
+static float w_x = 0.0f;
+static float w_y = 0.0f;
+static float w_z = 0.0f;
+
+// Setpoint
+static float p_x_des = 0.0f;
+static float p_y_des = 0.0f;
+static float p_z_des = 0.0f;
+
+// Input
+static float tau_x = 0.0f;
+static float tau_y = 0.0f;
+static float tau_z = 0.0f;
+static float f_z = 0.0f;
+
+// Motor power command
+static uint16_t m_1 = 0;
+static uint16_t m_2 = 0;
+static uint16_t m_3 = 0;
+static uint16_t m_4 = 0;
+
+// For time delay
+static float tau_x_cmd = 0.0f;    // tau_x command
+static float tau_y_cmd = 0.0f;    // tau_y command
+static float w_x_old = 0.0f;      // value of w_x from previous time step
+static float w_y_old = 0.0f;      // value of w_y from previous time step
+static float J_x = 1.68e-05f;     // FIXME: principal moment of inertia about x_B axis
+static float J_y = 1.69e-05;      // FIXME: principal moment of inertia about y_B axis
+static float dt = 0.002f;         // time step (corresponds to 500 Hz)
+
+
 void ae483UpdateWithTOF(tofMeasurement_t *tof)
 {
   tof_distance = tof->distance;
@@ -110,11 +151,62 @@ void controllerAE483(control_t *control,
     return;
   }
 
-  // Set all four motor power commands to zero
-  control->m1 = 0;
-  control->m2 = 0;
-  control->m3 = 0;
-  control->m4 = 0;
+  // Parse state (making sure to convert linear velocity from the world frame to the body frame)
+  p_x = state->position.x;
+  p_y = state->position.y;
+  p_z = state->position.z;
+  psi = radians(state->attitude.yaw);
+  theta = - radians(state->attitude.pitch);
+  phi = radians(state->attitude.roll);
+  w_x = radians(sensors->gyro.x);
+  w_y = radians(sensors->gyro.y);
+  w_z = radians(sensors->gyro.z);
+  v_x = state->velocity.x*cosf(psi)*cosf(theta) + state->velocity.y*sinf(psi)*cosf(theta) - state->velocity.z*sinf(theta);
+  v_y = state->velocity.x*(sinf(phi)*sinf(theta)*cosf(psi) - sinf(psi)*cosf(phi)) + state->velocity.y*(sinf(phi)*sinf(psi)*sinf(theta) + cosf(phi)*cosf(psi)) + state->velocity.z*sinf(phi)*cosf(theta);
+  v_z = state->velocity.x*(sinf(phi)*sinf(psi) + sinf(theta)*cosf(phi)*cosf(psi)) + state->velocity.y*(-sinf(phi)*cosf(psi) + sinf(psi)*sinf(theta)*cosf(phi)) + state->velocity.z*cosf(phi)*cosf(theta);
+
+  // Estimate tau_x and tau_y by finite difference
+  tau_x = J_x * (w_x - w_x_old) / dt;
+  tau_y = J_y * (w_y - w_y_old) / dt;
+  w_x_old = w_x;
+  w_y_old = w_y;
+
+  // Parse setpoint
+  p_x_des = setpoint->position.x;
+  p_y_des = setpoint->position.y;
+  p_z_des = setpoint->position.z;
+
+  if (setpoint->mode.z == modeDisable) {
+    // If there is no desired position, then all
+    // motor power commands should be zero
+
+    m_1 = 0;
+    m_2 = 0;
+    m_3 = 0;
+    m_4 = 0;
+  } else {
+    // Otherwise, motor power commands should be
+    // chosen by the controller
+
+    // FIXME (CONTROLLER GOES HERE)
+    tau_x_cmd = 0.00657196f * (p_y - p_y_des) -0.01089931f * phi + 0.00394655f * v_y -0.00149955f * w_x -2.74590184f * tau_x;
+    tau_y_cmd = -0.00657196f * (p_x - p_x_des) -0.01090571f * theta -0.00394763f * v_x -0.00150133f * w_y -2.73765352f * tau_y;
+    tau_z = -0.00096575f * psi -0.00038228f * w_z;
+    f_z = -0.34995563f * (p_z - p_z_des) -0.16359250f * v_z + 0.33648300f;
+
+    // FIXME (METHOD OF POWER DISTRIBUTION GOES HERE)
+    m_1 = limitUint16( -2937720.3f * tau_x_cmd -2937720.3f * tau_y_cmd -34626038.8f * tau_z + 135135.1f * f_z );
+    m_2 = limitUint16( -2937720.3f * tau_x_cmd + 2937720.3f * tau_y_cmd + 34626038.8f * tau_z + 135135.1f * f_z );
+    m_3 = limitUint16( 2937720.3f * tau_x_cmd + 2937720.3f * tau_y_cmd -34626038.8f * tau_z + 135135.1f * f_z );
+    m_4 = limitUint16( 2937720.3f * tau_x_cmd -2937720.3f * tau_y_cmd + 34626038.8f * tau_z + 135135.1f * f_z );
+  }
+
+  // Apply motor power commands
+  control->m1 = m_1;
+  control->m2 = m_2;
+  control->m3 = m_3;
+  control->m4 = m_4;
+
 }
 
 //              1234567890123456789012345678 <-- max total length
@@ -122,6 +214,31 @@ void controllerAE483(control_t *control,
 LOG_GROUP_START(ae483log)
 LOG_ADD(LOG_UINT16,      num_tof,                &tof_count)
 LOG_ADD(LOG_UINT16,      num_flow,               &flow_count)
+LOG_ADD(LOG_FLOAT,       p_x,                    &p_x)
+LOG_ADD(LOG_FLOAT,       p_y,                    &p_y)
+LOG_ADD(LOG_FLOAT,       p_z,                    &p_z)
+LOG_ADD(LOG_FLOAT,       psi,                    &psi)
+LOG_ADD(LOG_FLOAT,       theta,                  &theta)
+LOG_ADD(LOG_FLOAT,       phi,                    &phi)
+LOG_ADD(LOG_FLOAT,       v_x,                    &v_x)
+LOG_ADD(LOG_FLOAT,       v_y,                    &v_y)
+LOG_ADD(LOG_FLOAT,       v_z,                    &v_z)
+LOG_ADD(LOG_FLOAT,       w_x,                    &w_x)
+LOG_ADD(LOG_FLOAT,       w_y,                    &w_y)
+LOG_ADD(LOG_FLOAT,       w_z,                    &w_z)
+LOG_ADD(LOG_FLOAT,       p_x_des,                &p_x_des)
+LOG_ADD(LOG_FLOAT,       p_y_des,                &p_y_des)
+LOG_ADD(LOG_FLOAT,       p_z_des,                &p_z_des)
+LOG_ADD(LOG_FLOAT,       tau_x,                  &tau_x)
+LOG_ADD(LOG_FLOAT,       tau_y,                  &tau_y)
+LOG_ADD(LOG_FLOAT,       tau_z,                  &tau_z)
+LOG_ADD(LOG_FLOAT,       f_z,                    &f_z)
+LOG_ADD(LOG_UINT16,      m_1,                    &m_1)
+LOG_ADD(LOG_UINT16,      m_2,                    &m_2)
+LOG_ADD(LOG_UINT16,      m_3,                    &m_3)
+LOG_ADD(LOG_UINT16,      m_4,                    &m_4)
+LOG_ADD(LOG_FLOAT,       tau_x_cmd,              &tau_x_cmd)
+LOG_ADD(LOG_FLOAT,       tau_y_cmd,              &tau_y_cmd)
 LOG_GROUP_STOP(ae483log)
 
 //                1234567890123456789012345678 <-- max total length
