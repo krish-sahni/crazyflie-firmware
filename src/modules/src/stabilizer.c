@@ -247,7 +247,17 @@ static void logCapWarning(const bool isCapped) {
 }
 
 static void controlMotors(const control_t* control) {
-  // AE483 controllers generate motor power commands that we apply here.
+  // AE483 controllers generate motor power commands. It seems to be
+  // important that we pass these motor power commands through the same
+  // battery compensation and capping process that would be used by any
+  // other controller. If we don't do this, then the drone may shut off
+  // with "WARNING - Got link error callback [Too many packets lost]" in
+  // the client, and you won't be able to turn it back on until you plug
+  // the drone into power. This happens when the motor power commands are
+  // large. It does not happen with the older (not 2.1+) drones, nor does
+  // it happen with the newer (2.1+) drones when you give them an older
+  // battery (model name starting with "HW" instead of with "JH"). It is
+  // still not clear why.
   // 
   if (controllerType == ControllerTypeAE483) {
     motorsSetRatio(MOTOR_M1, control->m1);
@@ -255,12 +265,15 @@ static void controlMotors(const control_t* control) {
     motorsSetRatio(MOTOR_M3, control->m3);
     motorsSetRatio(MOTOR_M4, control->m4);
     return;
-  }
-  //
-  // Other controllers generate other sorts of commands, which are then
-  // converted to motor power commands in the following lines of code.
 
-  powerDistribution(control, &motorThrustUncapped);
+    motorThrustUncapped.motors.m1 = (int32_t) control->m1;
+    motorThrustUncapped.motors.m2 = (int32_t) control->m2;
+    motorThrustUncapped.motors.m3 = (int32_t) control->m3;
+    motorThrustUncapped.motors.m4 = (int32_t) control->m4;
+  } else {
+    powerDistribution(control, &motorThrustUncapped);
+  }
+  
   batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
   const bool isCapped = powerDistributionCap(&motorThrustBatCompUncapped, &motorPwm);
   logCapWarning(isCapped);
