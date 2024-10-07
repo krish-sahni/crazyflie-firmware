@@ -260,12 +260,6 @@ static void controlMotors(const control_t* control) {
   // still not clear why.
   // 
   if (controllerType == ControllerTypeAE483) {
-    motorsSetRatio(MOTOR_M1, control->m1);
-    motorsSetRatio(MOTOR_M2, control->m2);
-    motorsSetRatio(MOTOR_M3, control->m3);
-    motorsSetRatio(MOTOR_M4, control->m4);
-    return;
-
     motorThrustUncapped.motors.m1 = (int32_t) control->m1;
     motorThrustUncapped.motors.m2 = (int32_t) control->m2;
     motorThrustUncapped.motors.m3 = (int32_t) control->m3;
