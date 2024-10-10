@@ -60,6 +60,11 @@ static float J_x = 1.68e-05f;     // FIXME: principal moment of inertia about x_
 static float J_y = 1.69e-05;      // FIXME: principal moment of inertia about y_B axis
 static float dt = 0.002f;         // time step (corresponds to 500 Hz)
 
+// Measurements
+static float n_x = 0.0f;
+static float n_y = 0.0f;
+static float r = 0.0f;
+static float a_z = 0.0f;
 
 void ae483UpdateWithTOF(tofMeasurement_t *tof)
 {
@@ -176,6 +181,12 @@ void controllerAE483(control_t *control,
   p_y_des = setpoint->position.y;
   p_z_des = setpoint->position.z;
 
+  // Parse measurements
+  n_x = flow_dpixelx;
+  n_y = flow_dpixely;
+  r = tof_distance;
+  a_z = 9.81f * sensors->acc.z;
+
   if (setpoint->mode.z == modeDisable) {
     // If there is no desired position, then all
     // motor power commands should be zero
@@ -239,6 +250,10 @@ LOG_ADD(LOG_UINT16,      m_3,                    &m_3)
 LOG_ADD(LOG_UINT16,      m_4,                    &m_4)
 LOG_ADD(LOG_FLOAT,       tau_x_cmd,              &tau_x_cmd)
 LOG_ADD(LOG_FLOAT,       tau_y_cmd,              &tau_y_cmd)
+LOG_ADD(LOG_FLOAT,       n_x,                    &n_x)
+LOG_ADD(LOG_FLOAT,       n_y,                    &n_y)
+LOG_ADD(LOG_FLOAT,       r,                      &r)
+LOG_ADD(LOG_FLOAT,       a_z,                    &a_z)
 LOG_GROUP_STOP(ae483log)
 
 //                1234567890123456789012345678 <-- max total length
