@@ -66,6 +66,16 @@ static float n_y = 0.0f;
 static float r = 0.0f;
 static float a_z = 0.0f;
 
+// Constants
+static float k_flow = 4.09255568f;
+static float g = 9.81f;
+static float p_z_eq = 0.5f; // FIXME: replace with your choice of equilibrium height
+
+// Measurement errors
+static float n_x_err = 0.0f;
+static float n_y_err = 0.0f;
+static float r_err = 0.0f;
+
 void ae483UpdateWithTOF(tofMeasurement_t *tof)
 {
   tof_distance = tof->distance;
@@ -156,36 +166,75 @@ void controllerAE483(control_t *control,
     return;
   }
 
-  // Parse state (making sure to convert linear velocity from the world frame to the body frame)
-  p_x = state->position.x;
-  p_y = state->position.y;
-  p_z = state->position.z;
-  psi = radians(state->attitude.yaw);
-  theta = - radians(state->attitude.pitch);
-  phi = radians(state->attitude.roll);
+  // Desired position
+  p_x_des = setpoint->position.x;
+  p_y_des = setpoint->position.y;
+  p_z_des = setpoint->position.z;
+
+  // Measurements
   w_x = radians(sensors->gyro.x);
   w_y = radians(sensors->gyro.y);
   w_z = radians(sensors->gyro.z);
-  v_x = state->velocity.x*cosf(psi)*cosf(theta) + state->velocity.y*sinf(psi)*cosf(theta) - state->velocity.z*sinf(theta);
-  v_y = state->velocity.x*(sinf(phi)*sinf(theta)*cosf(psi) - sinf(psi)*cosf(phi)) + state->velocity.y*(sinf(phi)*sinf(psi)*sinf(theta) + cosf(phi)*cosf(psi)) + state->velocity.z*sinf(phi)*cosf(theta);
-  v_z = state->velocity.x*(sinf(phi)*sinf(psi) + sinf(theta)*cosf(phi)*cosf(psi)) + state->velocity.y*(-sinf(phi)*cosf(psi) + sinf(psi)*sinf(theta)*cosf(phi)) + state->velocity.z*cosf(phi)*cosf(theta);
+  a_z = g * sensors->acc.z;
+  n_x = flow_dpixelx;
+  n_y = flow_dpixely;
+  r = tof_distance;
 
-  // Estimate tau_x and tau_y by finite difference
+  // Torques by finite difference
   tau_x = J_x * (w_x - w_x_old) / dt;
   tau_y = J_y * (w_y - w_y_old) / dt;
   w_x_old = w_x;
   w_y_old = w_y;
 
-  // Parse setpoint
-  p_x_des = setpoint->position.x;
-  p_y_des = setpoint->position.y;
-  p_z_des = setpoint->position.z;
+  if (reset_observer) {
+    p_x = 0.0f;
+    p_y = 0.0f;
+    p_z = 0.0f;
+    psi = 0.0f;
+    theta = 0.0f;
+    phi = 0.0f;
+    v_x = 0.0f;
+    v_y = 0.0f;
+    v_z = 0.0f;
+    reset_observer = false;
+  }
 
-  // Parse measurements
-  n_x = flow_dpixelx;
-  n_y = flow_dpixely;
-  r = tof_distance;
-  a_z = 9.81f * sensors->acc.z;
+  // State estimates
+  if (use_observer) {
+  
+    // Compute each element of:
+    // 
+    //   C x + D u - y
+    // 
+    // FIXME: your code goes here
+    n_x_err = -k_flow * w_y + k_flow * v_x / p_z_eq - n_x;
+    n_y_err = -k_flow * w_x + k_flow * v_y / p_z_eq - n_y;
+    r_err = p_z - r;
+
+
+    // Update estimates
+    // FIXME: your code goes here
+    p_x += dt * v_x;  
+    p_y += dt * v_y;  
+    p_z += dt * (v_z - 21.781746f * r_err);
+    psi += dt * w_z;
+    theta += dt * (w_y - 0.001497f * n_x_err);
+    phi += dt * (w_x + 0.001652f * n_y_err);
+    v_x += dt * (g * theta - 0.061758f * n_x_err);
+    v_y += dt * (-g * phi - 0.064906f * n_y_err);
+    v_z += dt * (a_z - g - 98.333333f * r_err);
+
+  } else {
+    p_x = state->position.x;
+    p_y = state->position.y;
+    p_z = state->position.z;
+    psi = radians(state->attitude.yaw);
+    theta = - radians(state->attitude.pitch);
+    phi = radians(state->attitude.roll);
+    v_x = state->velocity.x*cosf(psi)*cosf(theta) + state->velocity.y*sinf(psi)*cosf(theta) - state->velocity.z*sinf(theta);
+    v_y = state->velocity.x*(sinf(phi)*sinf(theta)*cosf(psi) - sinf(psi)*cosf(phi)) + state->velocity.y*(sinf(phi)*sinf(psi)*sinf(theta) + cosf(phi)*cosf(psi)) + state->velocity.z*sinf(phi)*cosf(theta);
+    v_z = state->velocity.x*(sinf(phi)*sinf(psi) + sinf(theta)*cosf(phi)*cosf(psi)) + state->velocity.y*(-sinf(phi)*cosf(psi) + sinf(psi)*sinf(theta)*cosf(phi)) + state->velocity.z*cosf(phi)*cosf(theta);
+  }
 
   if (setpoint->mode.z == modeDisable) {
     // If there is no desired position, then all
