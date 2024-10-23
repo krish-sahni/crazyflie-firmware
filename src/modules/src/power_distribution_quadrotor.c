@@ -128,6 +128,14 @@ static void powerDistributionForceTorque(const control_t *control, motors_thrust
 static void powerDistributionForce(const control_t *control, motors_thrust_uncapped_t* motorThrustUncapped) {
   // Not implemented yet
 }
+static void powerDistributionAE483(const control_t *control, motors_thrust_uncapped_t* motorThrustUncapped) {
+
+  motorThrustUncapped->motors.m1 = control->m1;
+  motorThrustUncapped->motors.m2 = control->m2;
+  motorThrustUncapped->motors.m3 = control->m3;
+  motorThrustUncapped->motors.m4 = control->m4;
+  
+}
 
 void powerDistribution(const control_t *control, motors_thrust_uncapped_t* motorThrustUncapped)
 {
@@ -141,6 +149,8 @@ void powerDistribution(const control_t *control, motors_thrust_uncapped_t* motor
     case controlModeForce:
       powerDistributionForce(control, motorThrustUncapped);
       break;
+    case controlModeAE483:
+      powerDistributionAE483(control, motorThrustUncapped);
     default:
       // Nothing here
       break;
