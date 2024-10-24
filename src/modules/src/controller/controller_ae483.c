@@ -15,6 +15,14 @@ static uint16_t flow_count = 0;
 static float flow_dpixelx = 0.0f;
 static float flow_dpixely = 0.0f;
 
+// - Mocap measurements
+static float p_x_mocap = 0.0f;
+static float p_y_mocap = 0.0f;
+static float p_z_mocap = 0.0f;
+static float psi_mocap = 0.0f;
+static float theta_mocap = 0.0f;
+static float phi_mocap = 0.0f;
+
 // Parameters
 static bool use_observer = false;
 static bool reset_observer = false;
@@ -128,6 +136,20 @@ void ae483UpdateWithPose(poseMeasurement_t *meas)
   //  meas->quat.y    float     y component of quaternion from external orientation measurement
   //  meas->quat.z    float     z component of quaternion from external orientation measurement
   //  meas->quat.w    float     w component of quaternion from external orientation measurement
+  // Position
+  p_x_mocap = meas->x;
+  p_y_mocap = meas->y;
+  p_z_mocap = meas->z;
+
+  // Orientation
+  // - Create a quaternion from its parts
+  struct quat q_mocap = mkquat(meas->quat.x, meas->quat.y, meas->quat.z, meas->quat.w);
+  // - Convert the quaternion to a vector with yaw, pitch, and roll angles
+  struct vec rpy_mocap = quat2rpy(q_mocap);
+  // - Extract the yaw, pitch, and roll angles from the vector
+  psi_mocap = rpy_mocap.z;
+  theta_mocap = rpy_mocap.y;
+  phi_mocap = rpy_mocap.x;
 }
 
 void ae483UpdateWithData(const struct AE483Data* data)
@@ -303,6 +325,12 @@ LOG_ADD(LOG_FLOAT,       n_x,                    &n_x)
 LOG_ADD(LOG_FLOAT,       n_y,                    &n_y)
 LOG_ADD(LOG_FLOAT,       r,                      &r)
 LOG_ADD(LOG_FLOAT,       a_z,                    &a_z)
+LOG_ADD(LOG_FLOAT,       p_x_mocap,              &p_x_mocap)
+LOG_ADD(LOG_FLOAT,       p_y_mocap,              &p_y_mocap)
+LOG_ADD(LOG_FLOAT,       p_z_mocap,              &p_z_mocap)
+LOG_ADD(LOG_FLOAT,       psi_mocap,              &psi_mocap)
+LOG_ADD(LOG_FLOAT,       theta_mocap,            &theta_mocap)
+LOG_ADD(LOG_FLOAT,       phi_mocap,              &phi_mocap)
 LOG_GROUP_STOP(ae483log)
 
 //                1234567890123456789012345678 <-- max total length
