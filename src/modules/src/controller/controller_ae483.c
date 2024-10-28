@@ -21,13 +21,13 @@ static attitude_t attitudeDesired;
 static attitude_t rateDesired;
 static float actuatorThrust;
 
-static float cmd_thrust;
-static float cmd_roll;
-static float cmd_pitch;
-static float cmd_yaw;
-static float r_roll;
-static float r_pitch;
-static float r_yaw;
+// static float cmd_thrust;
+// static float cmd_roll;
+// static float cmd_pitch;
+// static float cmd_yaw;
+// static float r_roll;
+// static float r_pitch;
+// static float r_yaw;
 
 
 // Sensor measurements
@@ -264,40 +264,8 @@ void controllerAE483(control_t *control,
   }
 
   if (RATE_DO_EXECUTE(POSITION_RATE, stabilizerStep)) {
+    
     positionController(&actuatorThrust, &attitudeDesired, setpoint, state);
-
-    // float p_x_des;
-    // float p_y_des;
-    // float p_z_des;
-
-    // p_x_des = setpoint->position.x;
-    // p_y_des = setpoint->position.y;
-    // p_z_des = setpoint->position.z;
-
-    // float p_x;
-    // float p_y;
-    // float p_z;
-
-    // p_x = state->position.x;
-    // p_y = state->position.y;
-    // p_z = state->position.z;
-
-    // float v_x;
-    // float v_y;
-    // float v_z;
-
-    // v_x = state->velocity.x;
-    // v_y = state->velocity.y;
-    // v_z = state->velocity.z;
-
-    // attitudeDesired.roll = 0.0356779f*(p_y-p_y_des)+0.1223242f*v_y;
-    // attitudeDesired.pitch = -0.0356779f*(p_x-p_x_des)-0.1223242f*v_x;
-    // actuatorThrust = 1000.0f*(-200.00000f*(p_z-p_z_des)-0.2000000f*v_z) + 36000.0f;
-    // if (actuatorThrust < 20000.0f)
-    // {
-    //   actuatorThrust = 20000.0f;
-    // }
-    // attitudeDesired.yaw = 0.0f;
 
   }
 
@@ -330,14 +298,6 @@ void controllerAE483(control_t *control,
                                         &control->yaw);
 
     control->yaw = -control->yaw;
-
-    cmd_thrust = control->thrust;
-    cmd_roll = control->roll;
-    cmd_pitch = control->pitch;
-    cmd_yaw = control->yaw;
-    r_roll = radians(sensors->gyro.x);
-    r_pitch = -radians(sensors->gyro.y);
-    r_yaw = radians(sensors->gyro.z);
   }
 
   control->thrust = actuatorThrust;
@@ -348,11 +308,6 @@ void controllerAE483(control_t *control,
     control->roll = 0;
     control->pitch = 0;
     control->yaw = 0;
-
-    cmd_thrust = control->thrust;
-    cmd_roll = control->roll;
-    cmd_pitch = control->pitch;
-    cmd_yaw = control->yaw;
 
     attitudeControllerResetAllPID();
     positionControllerResetAllPID();
