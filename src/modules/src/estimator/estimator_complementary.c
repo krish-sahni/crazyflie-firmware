@@ -38,6 +38,9 @@
 #include "stabilizer_types.h"
 #include "static_mem.h"
 
+// Allows sending measurements to AE483 controller
+#include "controller_ae483.h"
+
 static Axis3f gyro;
 static Axis3f acc;
 static baro_t baro;
@@ -81,6 +84,12 @@ void estimatorComplementary(state_t *state, const stabilizerStep_t stabilizerSte
       break;
     case MeasurementTypeTOF:
       tof = m.data.tof;
+      break;
+    case MeasurementTypePosition:
+      ae483UpdateWithPosition(&m.data.position);
+      break;
+    case MeasurementTypePose:
+      ae483UpdateWithPose(&m.data.pose);
       break;
     default:
       break;

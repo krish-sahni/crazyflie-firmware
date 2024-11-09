@@ -14,20 +14,13 @@
 #include "debug.h"
 
 #define DEBUG_MODULE "CONTROLLER AE483"
-
 #define ATTITUDE_UPDATE_DT    (float)(1.0f/ATTITUDE_RATE)
 
-static attitude_t attitudeDesired;
-static attitude_t rateDesired;
-static float actuatorThrust;
 
-// static float cmd_thrust;
-// static float cmd_roll;
-// static float cmd_pitch;
-// static float cmd_yaw;
-// static float r_roll;
-// static float r_pitch;
-// static float r_yaw;
+
+// Pitch and roll saturation limits (deg)
+static const float rLimit = 20.0f;
+static const float pLimit = 20.0f;
 
 
 // Sensor measurements
@@ -50,73 +43,39 @@ static float p_x_mocap_old = 0.0f;
 static float p_y_mocap_old = 0.0f;
 static float p_z_mocap_old = 0.0f;
 
-// // Parameters
+
+// Parameters
 static bool use_observer = false;
 static bool reset_observer = false;
+static float MOCAP_HZ = 100.0f;
 
 
-// // State
-// - Velocity thru finite differencing from mocap data
+// States
+// - Position
+static float p_x = 0.0f;
+static float p_y = 0.0f;
+static float p_z = 0.0f;
+// - Velocity
+static float v_x = 0.0f;
+static float v_y = 0.0f;
+static float v_z = 0.0f;
+// - Velocity (based on mocap, finite differences)
 static float v_x_mocap = 0.0f;
 static float v_y_mocap = 0.0f;
 static float v_z_mocap = 0.0f;
 
-// static float p_x = 0.0f;
-// static float p_y = 0.0f;
-// static float p_z = 0.0f;
-// static float psi = 0.0f;
-// static float theta = 0.0f;
-// static float phi = 0.0f;
-// static float v_x = 0.0f;
-// static float v_y = 0.0f;
-// static float v_z = 0.0f;
-// static float w_x = 0.0f;
-// static float w_y = 0.0f;
-// static float w_z = 0.0f;
 
-// // Setpoint
-// static float p_x_des = 0.0f;
-// static float p_y_des = 0.0f;
-// static float p_z_des = 0.0f;
+// Setpoint
+static float p_x_des = 0.0f;
+static float p_y_des = 0.0f;
+static float p_z_des = 0.0f;
 
-// // Input
-// static float tau_x = 0.0f;
-// static float tau_y = 0.0f;
-// static float tau_z = 0.0f;
-// static float f_z = 0.0f;
 
-// // Motor power command
-// static uint16_t m_1 = 0;
-// static uint16_t m_2 = 0;
-// static uint16_t m_3 = 0;
-// static uint16_t m_4 = 0;
+// Control inputs for position subsystem
+static attitude_t attitudeDesired;
+static attitude_t rateDesired;
+static float actuatorThrust;
 
-// // For time delay
-// static float tau_x_cmd = 0.0f;    // tau_x command
-// static float tau_y_cmd = 0.0f;    // tau_y command
-// static float w_x_old = 0.0f;      // value of w_x from previous time step
-// static float w_y_old = 0.0f;      // value of w_y from previous time step
-// static float J_x = 1.68e-05f;     // FIXME: principal moment of inertia about x_B axis
-// static float J_y = 1.69e-05;      // FIXME: principal moment of inertia about y_B axis
-// static float dt = 0.002f;         // time step (corresponds to 500 Hz)
-
-// // Measurements
-// static float n_x = 0.0f;
-// static float n_y = 0.0f;
-// static float r = 0.0f;
-// static float a_z = 0.0f;
-
-// // Constants
-// static float k_flow = 4.09255568f;
-// static const float g = 9.81f;
-// static const float m = 33e-3f;
-
-// static float p_z_eq = 0.5f; // FIXME: replace with your choice of equilibrium height
-
-// // Measurement errors
-// static float n_x_err = 0.0f;
-// static float n_y_err = 0.0f;
-// static float r_err = 0.0f;
 
 void ae483UpdateWithTOF(tofMeasurement_t *tof)
 {
@@ -189,9 +148,9 @@ void ae483UpdateWithPose(poseMeasurement_t *meas)
   p_z_mocap_old = pz_temp;
 
   // Compute the velocity thru finite differencing
-  v_x_mocap = (p_x_mocap - p_x_mocap_old) * 100.0f;
-  v_y_mocap = (p_y_mocap - p_y_mocap_old) * 100.0f;
-  v_z_mocap = (p_z_mocap - p_z_mocap_old) * 100.0f;
+  v_x_mocap = (p_x_mocap - p_x_mocap_old) * MOCAP_HZ;
+  v_y_mocap = (p_y_mocap - p_y_mocap_old) * MOCAP_HZ;
+  v_z_mocap = (p_z_mocap - p_z_mocap_old) * MOCAP_HZ;
 
   // Orientation
   // - Create a quaternion from its parts
@@ -221,9 +180,12 @@ void ae483UpdateWithData(const struct AE483Data* data)
 
 void controllerAE483Init(void)
 {
+
+  DEBUG_PRINT("Called 'Init' on my controller! :)\n");
+
   // Forward init calls to default PID controller
   attitudeControllerInit(ATTITUDE_UPDATE_DT);
-  positionControllerInit();
+  // positionControllerInit();
 }
 
 bool controllerAE483Test(void)
@@ -254,6 +216,55 @@ void controllerAE483(control_t *control,
 {
   control->controlMode = controlModeLegacy;
 
+  p_x_des = setpoint->position.x;
+  p_y_des = setpoint->position.y;
+  p_z_des = setpoint->position.z;
+
+  if (RATE_DO_EXECUTE(POSITION_RATE, stabilizerStep)) {
+    
+    if(use_observer){
+
+      // FIXME: Insert custom observer here
+
+      // - Position
+      p_x = p_x_mocap;
+      p_y = p_y_mocap;
+      p_z = p_z_mocap;
+
+      // - Velocity
+      v_x = v_x_mocap;
+      v_y = v_y_mocap;
+      v_z = v_z_mocap;
+
+    }else{
+      
+      // Parse state estimate from default observer.
+      
+      // - Position
+      p_x = state->position.x;
+      p_y = state->position.y;
+      p_z = state->position.z;
+
+      // - Velocity
+      v_x = state->velocity.x;
+      v_y = state->velocity.y;
+      v_z = state->velocity.z;
+
+    }
+
+    // Feedback for position subsystem
+    actuatorThrust = 1000.0f * (50.0f * (p_z_des - p_z) - 25.0f * (v_z)) + 36000.0f;
+    attitudeDesired.pitch = -50.0f * (p_x_des - p_x) + 25.0f * (v_x);
+    attitudeDesired.roll = -50.0f * (p_y_des - p_y) + 25.0f * (v_y);
+
+
+    // saturate control inputs
+    actuatorThrust = constrain(actuatorThrust, 0, UINT16_MAX);
+    attitudeDesired.pitch = constrain(attitudeDesired.pitch, -pLimit, pLimit);
+    attitudeDesired.roll = constrain(attitudeDesired.roll, -rLimit, rLimit);
+
+  }
+
   if (RATE_DO_EXECUTE(ATTITUDE_RATE, stabilizerStep)) {
 
     if (setpoint->mode.yaw == modeAbs) {
@@ -261,15 +272,7 @@ void controllerAE483(control_t *control,
     } 
 
     attitudeDesired.yaw = capAngle(attitudeDesired.yaw);
-  }
 
-  if (RATE_DO_EXECUTE(POSITION_RATE, stabilizerStep)) {
-    
-    positionController(&actuatorThrust, &attitudeDesired, setpoint, state);
-
-  }
-
-  if (RATE_DO_EXECUTE(ATTITUDE_RATE, stabilizerStep)) {
     // Switch between manual and automatic position control
     if (setpoint->mode.z == modeDisable) {
 
@@ -310,15 +313,14 @@ void controllerAE483(control_t *control,
     control->yaw = 0;
 
     attitudeControllerResetAllPID();
-    positionControllerResetAllPID();
 
     // Reset the calculated YAW angle for rate control
     attitudeDesired.yaw = state->attitude.yaw;
   }
 }
 
-//              1234567890123456789012345678 <-- max total length
-//              group   .name
+// 1234567890123456789012345678 <-- max total length
+// group   .name
 LOG_GROUP_START(ae483log)
 LOG_ADD(LOG_UINT16,      num_tof,                &tof_count)
 LOG_ADD(LOG_UINT16,      num_flow,               &flow_count)
@@ -331,40 +333,21 @@ LOG_ADD(LOG_FLOAT,       v_z_mocap,              &v_z_mocap)
 LOG_ADD(LOG_FLOAT,       psi_mocap,              &psi_mocap)
 LOG_ADD(LOG_FLOAT,       theta_mocap,            &theta_mocap)
 LOG_ADD(LOG_FLOAT,       phi_mocap,              &phi_mocap)
-// LOG_ADD(LOG_FLOAT,       p_x,                    &p_x)
-// LOG_ADD(LOG_FLOAT,       p_y,                    &p_y)
-// LOG_ADD(LOG_FLOAT,       p_z,                    &p_z)
-// LOG_ADD(LOG_FLOAT,       psi,                    &psi)
-// LOG_ADD(LOG_FLOAT,       theta,                  &theta)
-// LOG_ADD(LOG_FLOAT,       phi,                    &phi)
-// LOG_ADD(LOG_FLOAT,       v_x,                    &v_x)
-// LOG_ADD(LOG_FLOAT,       v_y,                    &v_y)
-// LOG_ADD(LOG_FLOAT,       v_z,                    &v_z)
-// LOG_ADD(LOG_FLOAT,       w_x,                    &w_x)
-// LOG_ADD(LOG_FLOAT,       w_y,                    &w_y)
-// LOG_ADD(LOG_FLOAT,       w_z,                    &w_z)
-// LOG_ADD(LOG_FLOAT,       p_x_des,                &p_x_des)
-// LOG_ADD(LOG_FLOAT,       p_y_des,                &p_y_des)
-// LOG_ADD(LOG_FLOAT,       p_z_des,                &p_z_des)
-// LOG_ADD(LOG_FLOAT,       tau_x,                  &tau_x)
-// LOG_ADD(LOG_FLOAT,       tau_y,                  &tau_y)
-// LOG_ADD(LOG_FLOAT,       tau_z,                  &tau_z)
-// LOG_ADD(LOG_FLOAT,       f_z,                    &f_z)
-// LOG_ADD(LOG_UINT16,      m_1,                    &m_1)
-// LOG_ADD(LOG_UINT16,      m_2,                    &m_2)
-// LOG_ADD(LOG_UINT16,      m_3,                    &m_3)
-// LOG_ADD(LOG_UINT16,      m_4,                    &m_4)
-// LOG_ADD(LOG_FLOAT,       tau_x_cmd,              &tau_x_cmd)
-// LOG_ADD(LOG_FLOAT,       tau_y_cmd,              &tau_y_cmd)
-// LOG_ADD(LOG_FLOAT,       n_x,                    &n_x)
-// LOG_ADD(LOG_FLOAT,       n_y,                    &n_y)
-// LOG_ADD(LOG_FLOAT,       r,                      &r)
-// LOG_ADD(LOG_FLOAT,       a_z,                    &a_z)
+LOG_ADD(LOG_FLOAT,       p_x,                    &p_x)
+LOG_ADD(LOG_FLOAT,       p_y,                    &p_y)
+LOG_ADD(LOG_FLOAT,       p_z,                    &p_z)
+LOG_ADD(LOG_FLOAT,       v_x,                    &v_x)
+LOG_ADD(LOG_FLOAT,       v_y,                    &v_y)
+LOG_ADD(LOG_FLOAT,       v_z,                    &v_z)
+LOG_ADD(LOG_FLOAT,       p_x_des,                &p_x_des)
+LOG_ADD(LOG_FLOAT,       p_y_des,                &p_y_des)
+LOG_ADD(LOG_FLOAT,       p_z_des,                &p_z_des)
 LOG_GROUP_STOP(ae483log)
 
-//                1234567890123456789012345678 <-- max total length
-//                group   .name
+// 1234567890123456789012345678 <-- max total length
+// group   .name
 PARAM_GROUP_START(ae483par)
 PARAM_ADD(PARAM_UINT8,     use_observer,            &use_observer)
 PARAM_ADD(PARAM_UINT8,     reset_observer,          &reset_observer)
+PARAM_ADD(PARAM_FLOAT,     MOCAP_HZ,                &MOCAP_HZ)
 PARAM_GROUP_STOP(ae483par)
