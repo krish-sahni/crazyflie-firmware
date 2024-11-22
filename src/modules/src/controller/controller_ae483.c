@@ -38,11 +38,6 @@ static float p_z_mocap = 0.0f;
 static float psi_mocap = 0.0f;
 static float theta_mocap = 0.0f;
 static float phi_mocap = 0.0f;
-// - old mocap data
-static float p_x_mocap_old = 0.0f;
-static float p_y_mocap_old = 0.0f;
-static float p_z_mocap_old = 0.0f;
-
 
 // Parameters
 static bool use_observer = false;
@@ -144,27 +139,15 @@ void ae483UpdateWithData(const struct AE483Data* data)
   //
   // Exactly what "x", "y", and "z" mean in this context is up to you.
   
-    // Position
-  static float px_temp;
-  static float py_temp;
-  static float pz_temp;
-
-  px_temp = p_x_mocap;
-  py_temp = p_y_mocap;
-  pz_temp = p_z_mocap;
-
+  // Position
   p_x_mocap = data->p_x;
   p_y_mocap = data->p_y;
   p_z_mocap = data->p_z;
 
-  p_x_mocap_old = px_temp;
-  p_y_mocap_old = py_temp;
-  p_z_mocap_old = pz_temp;
-
-  // Compute the velocity thru finite differencing
-  v_x_mocap = (p_x_mocap - p_x_mocap_old) * MOCAP_HZ;
-  v_y_mocap = (p_y_mocap - p_y_mocap_old) * MOCAP_HZ;
-  v_z_mocap = (p_z_mocap - p_z_mocap_old) * MOCAP_HZ;
+  // Velocity
+  v_x_mocap = data->v_x;
+  v_y_mocap = data->v_y;
+  v_z_mocap = data->v_z;
 
 }
 

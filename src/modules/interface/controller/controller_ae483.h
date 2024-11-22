@@ -3,11 +3,6 @@
 
 #include "stabilizer_types.h"
 
-// typedef enum z_pos_mode_e {
-//   zPosModeRawMocap    = 0,
-//   zPosModeEncoded     = 1,
-// } z_pos_mode_t;
-
 // An example struct to hold AE483-specific data sent from client to drone
 struct AE483Data
 {
@@ -16,33 +11,12 @@ struct AE483Data
   float p_y;
   float p_z;
 
+  // Hold linear velocities
+  float v_x;
+  float v_y;
+  float v_z;
+
 } __attribute__((packed));
-
-// struct AE483Data
-// {
-//   float p_x;
-//   float p_y;
-  
-//   union
-//   {
-//     // Receive raw mocap data for z-position
-//     float p_z;
-
-//     // Receive encoded measurements of z-position
-//     // and z-velocity.
-//     struct
-//     {
-//       uint8_t qk_p_z;
-//       uint8_t qk_v_z;
-//     };
-    
-//   };
-  
-//   z_pos_mode_t zPosMode;
-//   // float p_z;
-//   // uint8_t qk_p_z;
-//   // uint8_t qk_v_z;
-// } __attribute__((packed));
 
 void controllerAE483Init(void);
 bool controllerAE483Test(void);
