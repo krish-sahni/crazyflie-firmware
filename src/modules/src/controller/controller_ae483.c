@@ -130,38 +130,6 @@ void ae483UpdateWithPose(poseMeasurement_t *meas)
   //  meas->quat.z    float     z component of quaternion from external orientation measurement
   //  meas->quat.w    float     w component of quaternion from external orientation measurement
 
-  // Position
-  static float px_temp;
-  static float py_temp;
-  static float pz_temp;
-
-  px_temp = p_x_mocap;
-  py_temp = p_y_mocap;
-  pz_temp = p_z_mocap;
-
-  p_x_mocap = meas->x;
-  p_y_mocap = meas->y;
-  p_z_mocap = meas->z;
-
-  p_x_mocap_old = px_temp;
-  p_y_mocap_old = py_temp;
-  p_z_mocap_old = pz_temp;
-
-  // Compute the velocity thru finite differencing
-  v_x_mocap = (p_x_mocap - p_x_mocap_old) * MOCAP_HZ;
-  v_y_mocap = (p_y_mocap - p_y_mocap_old) * MOCAP_HZ;
-  v_z_mocap = (p_z_mocap - p_z_mocap_old) * MOCAP_HZ;
-
-  // Orientation
-  // - Create a quaternion from its parts
-  struct quat q_mocap = mkquat(meas->quat.x, meas->quat.y, meas->quat.z, meas->quat.w);
-  // - Convert the quaternion to a vector with yaw, pitch, and roll angles
-  struct vec rpy_mocap = quat2rpy(q_mocap);
-  // - Extract the yaw, pitch, and roll angles from the vector
-  psi_mocap = rpy_mocap.z;
-  theta_mocap = rpy_mocap.y;
-  phi_mocap = rpy_mocap.x;
-
 }
 
 void ae483UpdateWithData(const struct AE483Data* data)
@@ -175,6 +143,29 @@ void ae483UpdateWithData(const struct AE483Data* data)
   //  data->z         float
   //
   // Exactly what "x", "y", and "z" mean in this context is up to you.
+  
+    // Position
+  static float px_temp;
+  static float py_temp;
+  static float pz_temp;
+
+  px_temp = p_x_mocap;
+  py_temp = p_y_mocap;
+  pz_temp = p_z_mocap;
+
+  p_x_mocap = data->p_x;
+  p_y_mocap = data->p_y;
+  p_z_mocap = data->p_z;
+
+  p_x_mocap_old = px_temp;
+  p_y_mocap_old = py_temp;
+  p_z_mocap_old = pz_temp;
+
+  // Compute the velocity thru finite differencing
+  v_x_mocap = (p_x_mocap - p_x_mocap_old) * MOCAP_HZ;
+  v_y_mocap = (p_y_mocap - p_y_mocap_old) * MOCAP_HZ;
+  v_z_mocap = (p_z_mocap - p_z_mocap_old) * MOCAP_HZ;
+
 }
 
 
@@ -238,17 +229,19 @@ void controllerAE483(control_t *control,
 
     }else{
       
-      // Parse state estimate from default observer.
+      // Produce state estimates according to
+      // Direct feedback control.
+      // Let this be the 'default' observer.
       
       // - Position
-      p_x = state->position.x;
-      p_y = state->position.y;
-      p_z = state->position.z;
+      p_x = p_x_mocap;
+      p_y = p_y_mocap;
+      p_z = p_z_mocap;
 
       // - Velocity
-      v_x = state->velocity.x;
-      v_y = state->velocity.y;
-      v_z = state->velocity.z;
+      v_x = v_x_mocap;
+      v_y = v_y_mocap;
+      v_z = v_z_mocap;
 
     }
 
