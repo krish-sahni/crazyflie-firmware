@@ -58,7 +58,7 @@ static float v_z = 0.0f;
 static float v_x_mocap = 0.0f;
 static float v_y_mocap = 0.0f;
 static float v_z_mocap = 0.0f;
-
+static uint32_t portcount = 0;
 
 // Setpoint
 static float p_x_des = 0.0f;
@@ -149,6 +149,7 @@ void ae483UpdateWithData(const struct AE483Data* data)
   v_y_mocap = data->v_y;
   v_z_mocap = data->v_z;
 
+  portcount++;
 }
 
 
@@ -200,6 +201,28 @@ void controllerAE483(control_t *control,
 
       // FIXME: Insert custom observer here
 
+      if(reset_observer)
+      {
+        p_x = 0.0f;
+        p_y = 0.0f;
+        p_z = 0.0f;
+
+        v_x = 0.0f;
+        v_y = 0.0f;
+        v_z = 0.0f;
+
+        p_x_mocap = 0.0f;
+        p_y_mocap = 0.0f;
+        p_z_mocap = 0.0f;
+
+        v_x_mocap = 0.0f;
+        v_y_mocap = 0.0f;
+        v_z_mocap = 0.0f;
+
+        reset_observer = false;
+      }
+      else
+      {
       // - Position
       p_x = p_x_mocap;
       p_y = p_y_mocap;
@@ -209,6 +232,7 @@ void controllerAE483(control_t *control,
       v_x = v_x_mocap;
       v_y = v_y_mocap;
       v_z = v_z_mocap;
+      }
 
     }else{
       
@@ -318,6 +342,7 @@ LOG_ADD(LOG_FLOAT,       v_z,                    &v_z)
 LOG_ADD(LOG_FLOAT,       p_x_des,                &p_x_des)
 LOG_ADD(LOG_FLOAT,       p_y_des,                &p_y_des)
 LOG_ADD(LOG_FLOAT,       p_z_des,                &p_z_des)
+LOG_ADD(LOG_UINT32,      portcount,              &portcount)
 LOG_GROUP_STOP(ae483log)
 
 // 1234567890123456789012345678 <-- max total length
