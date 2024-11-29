@@ -59,6 +59,12 @@ static float v_x_mocap = 0.0f;
 static float v_y_mocap = 0.0f;
 static float v_z_mocap = 0.0f;
 static uint32_t portcount = 0;
+// Encoder variables
+static float E0 = 1.0f;
+static const float Lambda = 1.020f;
+static const unsigned char Ndiv = 5;
+static bool hasOverflowed = false;
+static uint16_t qk_count = 0;
 
 // Setpoint
 static float p_x_des = 0.0f;
@@ -127,6 +133,51 @@ void ae483UpdateWithPose(poseMeasurement_t *meas)
 
 }
 
+bool decoder(const int16_t qk_p_z, const int16_t qk_v_z)
+{
+  // If the codeword is '-1', we are zooming out.
+  // DO NOT modify the state estimate.
+  if(qk_p_z == -1)
+  {
+    // Do nothing.
+    DEBUG_PRINT("State overflowed\n");
+
+    return true;
+  }
+  
+  else{
+    
+    float delta = 2.0f * E0 / Ndiv;
+
+    float yhat_p_z = -E0 + p_x_mocap + delta/2.0f + qk_p_z*delta;
+    float yhat_v_z = -E0 + v_x_mocap + delta/2.0f + qk_v_z*delta;
+
+    p_z_mocap = yhat_p_z;
+    v_z_mocap = yhat_v_z;
+
+    return false;
+  }
+}
+
+void updateBoundingBox(float E0, const bool hasOverflowed)
+{
+  if(hasOverflowed)
+  {
+    E0 = 1.0f;
+    for(int i=0; i<2*qk_count; i++)
+    {
+      E0 *= (qk_count * Lambda);
+    }
+
+    qk_count += 1;
+  }
+  else
+  {
+    E0 *= (Lambda / Ndiv);
+    qk_count = 0;
+  }
+}
+
 void ae483UpdateWithData(const struct AE483Data* data)
 {
   // This function will be called each time AE483-specific data are sent
@@ -142,14 +193,20 @@ void ae483UpdateWithData(const struct AE483Data* data)
   // Position
   p_x_mocap = data->p_x;
   p_y_mocap = data->p_y;
-  p_z_mocap = data->p_z;
+  // p_z_mocap = data->p_z;
 
   // Velocity
   v_x_mocap = data->v_x;
   v_y_mocap = data->v_y;
-  v_z_mocap = data->v_z;
+  // v_z_mocap = data->v_z;
 
-  portcount++;
+  // Decoder for z-position subsystem
+  hasOverflowed = decoder(data->qk_p_z, data->qk_v_z);
+
+  // Update the size of the bounding box.
+  // E0 is modified IN-PLACE
+  updateBoundingBox(E0, hasOverflowed);
+
 }
 
 
@@ -197,60 +254,17 @@ void controllerAE483(control_t *control,
 
   if (RATE_DO_EXECUTE(POSITION_RATE, stabilizerStep)) {
     
-    if(use_observer){
+    // FIXME: Insert custom observer here
 
-      // FIXME: Insert custom observer here
+    // - Position
+    p_x = p_x_mocap;
+    p_y = p_y_mocap;
+    p_z = p_z_mocap;
 
-      if(reset_observer)
-      {
-        p_x = 0.0f;
-        p_y = 0.0f;
-        p_z = 0.0f;
-
-        v_x = 0.0f;
-        v_y = 0.0f;
-        v_z = 0.0f;
-
-        p_x_mocap = 0.0f;
-        p_y_mocap = 0.0f;
-        p_z_mocap = 0.0f;
-
-        v_x_mocap = 0.0f;
-        v_y_mocap = 0.0f;
-        v_z_mocap = 0.0f;
-
-        reset_observer = false;
-      }
-      else
-      {
-      // - Position
-      p_x = p_x_mocap;
-      p_y = p_y_mocap;
-      p_z = p_z_mocap;
-
-      // - Velocity
-      v_x = v_x_mocap;
-      v_y = v_y_mocap;
-      v_z = v_z_mocap;
-      }
-
-    }else{
-      
-      // Produce state estimates according to
-      // Direct feedback control.
-      // Let this be the 'default' observer.
-      
-      // - Position
-      p_x = p_x_mocap;
-      p_y = p_y_mocap;
-      p_z = p_z_mocap;
-
-      // - Velocity
-      v_x = v_x_mocap;
-      v_y = v_y_mocap;
-      v_z = v_z_mocap;
-
-    }
+    // - Velocity
+    v_x = v_x_mocap;
+    v_y = v_y_mocap;
+    v_z = v_z_mocap;
 
     // Feedback for position subsystem
     actuatorThrust = 1000.0f * (50.0f * (p_z_des - p_z) - 25.0f * (v_z)) + 36000.0f;
@@ -262,6 +276,18 @@ void controllerAE483(control_t *control,
     actuatorThrust = constrain(actuatorThrust, 0, UINT16_MAX);
     attitudeDesired.pitch = constrain(attitudeDesired.pitch, -pLimit, pLimit);
     attitudeDesired.roll = constrain(attitudeDesired.roll, -rLimit, rLimit);
+
+    // For the z-position subsystem, we integrate the closed-loop
+    // system.
+    if(hasOverflowed)
+    {
+      p_z_mocap += ((float)(1.0f/POSITION_RATE) * v_z_mocap);
+    }
+    else
+    {
+      p_z_mocap += ((float)(1.0f/POSITION_RATE) * v_z_mocap);
+      v_z_mocap += ((float)(1.0f/POSITION_RATE) * (-11.662f*(p_z_mocap-p_z_des) -5.831f*v_z_mocap));
+    }
 
   }
 

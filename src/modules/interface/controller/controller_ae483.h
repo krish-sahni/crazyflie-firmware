@@ -9,12 +9,16 @@ struct AE483Data
 
   float p_x;
   float p_y;
-  float p_z;
+  // float p_z;
 
   // Hold linear velocities
   float v_x;
   float v_y;
-  float v_z;
+  // float v_z;
+
+  // Encoded state measurements
+  int16_t qk_p_z;
+  int16_t qk_v_z;
 
 } __attribute__((packed));
 
