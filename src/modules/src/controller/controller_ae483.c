@@ -61,8 +61,8 @@ static float v_z_mocap = 0.0f;
 static uint32_t portcount = 0;
 // Encoder variables
 static float E0 = 1.0f;
-static const float Lambda = 1.020f;
-static const unsigned char Ndiv = 5;
+static const float Lambda = 1.050f;
+static const unsigned char Ndiv = 9;
 static bool hasOverflowed = false;
 static uint16_t qk_count = 0;
 
@@ -140,7 +140,7 @@ bool decoder(const int16_t qk_p_z, const int16_t qk_v_z)
   if(qk_p_z == -1)
   {
     // Do nothing.
-    DEBUG_PRINT("State overflowed\n");
+    // DEBUG_PRINT("State overflowed\n");
 
     return true;
   }
@@ -149,22 +149,22 @@ bool decoder(const int16_t qk_p_z, const int16_t qk_v_z)
     
     float delta = 2.0f * E0 / Ndiv;
 
-    float yhat_p_z = -E0 + p_x_mocap + delta/2.0f + qk_p_z*delta;
-    float yhat_v_z = -E0 + v_x_mocap + delta/2.0f + qk_v_z*delta;
+    p_z_mocap = -E0 + p_z + delta/2.0f + qk_p_z*delta;
+    v_z_mocap = -E0 + v_z + delta/2.0f + qk_v_z*delta;
 
-    p_z_mocap = yhat_p_z;
-    v_z_mocap = yhat_v_z;
+    p_z = p_z_mocap;
+    v_z = v_z_mocap;
 
     return false;
   }
 }
 
-void updateBoundingBox(float E0, const bool hasOverflowed)
+void updateBoundingBox(const bool hasOverflowed)
 {
   if(hasOverflowed)
   {
     E0 = 1.0f;
-    for(int i=0; i<2*qk_count; i++)
+    for(int i=0; i<3*qk_count; i++)
     {
       E0 *= (qk_count * Lambda);
     }
@@ -205,7 +205,7 @@ void ae483UpdateWithData(const struct AE483Data* data)
 
   // Update the size of the bounding box.
   // E0 is modified IN-PLACE
-  updateBoundingBox(E0, hasOverflowed);
+  updateBoundingBox(hasOverflowed);
 
 }
 
@@ -255,25 +255,42 @@ void controllerAE483(control_t *control,
   if (RATE_DO_EXECUTE(POSITION_RATE, stabilizerStep)) {
     
     // FIXME: Insert custom observer here
+    if(reset_observer)
+    {
+      p_x = 0.0f;
+      p_y = 0.0f;
+      p_z = 0.0f;
+      v_x = 0.0f;
+      v_y = 0.0f;
+      v_z = 0.0f;
 
+      p_x_mocap = 0.0f;
+      p_y_mocap = 0.0f;
+      p_z_mocap = 0.0f;
+      v_x_mocap = 0.0f;
+      v_y_mocap = 0.0f;
+      v_z_mocap = 0.0f;
+
+      reset_observer = false;
+    }
     // - Position
     p_x = p_x_mocap;
     p_y = p_y_mocap;
-    p_z = p_z_mocap;
+    // p_z = p_z_mocap;
 
     // - Velocity
     v_x = v_x_mocap;
     v_y = v_y_mocap;
-    v_z = v_z_mocap;
+    // v_z = v_z_mocap;
 
     // Feedback for position subsystem
-    actuatorThrust = 1000.0f * (50.0f * (p_z_des - p_z) - 25.0f * (v_z)) + 36000.0f;
+    // actuatorThrust = 1000.0f * (50.0f * (p_z_des - p_z) - 25.0f * (v_z)) + 36000.0f;
     attitudeDesired.pitch = -50.0f * (p_x_des - p_x) + 25.0f * (v_x);
     attitudeDesired.roll = -50.0f * (p_y_des - p_y) + 25.0f * (v_y);
 
 
     // saturate control inputs
-    actuatorThrust = constrain(actuatorThrust, 0, UINT16_MAX);
+    // actuatorThrust = constrain(actuatorThrust, 0, UINT16_MAX);
     attitudeDesired.pitch = constrain(attitudeDesired.pitch, -pLimit, pLimit);
     attitudeDesired.roll = constrain(attitudeDesired.roll, -rLimit, rLimit);
 
@@ -281,13 +298,30 @@ void controllerAE483(control_t *control,
     // system.
     if(hasOverflowed)
     {
-      p_z_mocap += ((float)(1.0f/POSITION_RATE) * v_z_mocap);
+      actuatorThrust = 36000.0f;
+
+      // p_z_mocap += ((float)(1.0f/POSITION_RATE) * v_z_mocap);
+
+      // p_z = p_z_mocap;
+      // v_z = v_z_mocap;
+
+      p_z += ((float)(1.0f/POSITION_RATE) * v_z);
     }
     else
     {
-      p_z_mocap += ((float)(1.0f/POSITION_RATE) * v_z_mocap);
-      v_z_mocap += ((float)(1.0f/POSITION_RATE) * (-11.662f*(p_z_mocap-p_z_des) -5.831f*v_z_mocap));
+      actuatorThrust = 1000.0f * (50.0f * (p_z_des - p_z) - 25.0f * (v_z)) + 36000.0f;
+      
+      // p_z_mocap += ((float)(1.0f/POSITION_RATE) * v_z_mocap);
+      // v_z_mocap += ((float)(1.0f/POSITION_RATE) * (-11.662f*(p_z_mocap-p_z_des) -5.831f*v_z_mocap));
+
+      // p_z = p_z_mocap;
+      // v_z = v_z_mocap;
+
+      p_z += ((float)(1.0f/POSITION_RATE) * v_z);
+      v_z += ((float)(1.0f/POSITION_RATE) * (-11.662f*(p_z-p_z_des) - 5.831f*v_z));
     }
+
+    actuatorThrust = constrain(actuatorThrust, 0, UINT16_MAX);
 
   }
 
@@ -359,6 +393,7 @@ LOG_ADD(LOG_FLOAT,       v_z_mocap,              &v_z_mocap)
 LOG_ADD(LOG_FLOAT,       psi_mocap,              &psi_mocap)
 LOG_ADD(LOG_FLOAT,       theta_mocap,            &theta_mocap)
 LOG_ADD(LOG_FLOAT,       phi_mocap,              &phi_mocap)
+LOG_ADD(LOG_FLOAT,       E0,                     &E0)
 LOG_ADD(LOG_FLOAT,       p_x,                    &p_x)
 LOG_ADD(LOG_FLOAT,       p_y,                    &p_y)
 LOG_ADD(LOG_FLOAT,       p_z,                    &p_z)
