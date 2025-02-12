@@ -43,7 +43,8 @@ static float phi_mocap = 0.0f;
 static bool use_observer = false;
 static bool reset_observer = false;
 static float MOCAP_HZ = 100.0f;
-
+static float Lambda = 0.0f;
+static unsigned char Ndiv = 0;
 
 // States
 // - Position
@@ -61,8 +62,8 @@ static float v_z_mocap = 0.0f;
 static uint32_t portcount = 0;
 // Encoder variables
 static float E0 = 1.0f;
-static const float Lambda = 1.050f;
-static const unsigned char Ndiv = 9;
+// static const float Lambda = 1.020f;
+// static const unsigned char Ndiv = 15;
 static bool hasOverflowed = false;
 static uint16_t qk_count = 0;
 
@@ -276,46 +277,32 @@ void controllerAE483(control_t *control,
     // - Position
     p_x = p_x_mocap;
     p_y = p_y_mocap;
-    // p_z = p_z_mocap;
 
     // - Velocity
     v_x = v_x_mocap;
     v_y = v_y_mocap;
-    // v_z = v_z_mocap;
 
     // Feedback for position subsystem
-    // actuatorThrust = 1000.0f * (50.0f * (p_z_des - p_z) - 25.0f * (v_z)) + 36000.0f;
     attitudeDesired.pitch = -50.0f * (p_x_des - p_x) + 25.0f * (v_x);
     attitudeDesired.roll = -50.0f * (p_y_des - p_y) + 25.0f * (v_y);
 
 
     // saturate control inputs
-    // actuatorThrust = constrain(actuatorThrust, 0, UINT16_MAX);
     attitudeDesired.pitch = constrain(attitudeDesired.pitch, -pLimit, pLimit);
     attitudeDesired.roll = constrain(attitudeDesired.roll, -rLimit, rLimit);
 
     // For the z-position subsystem, we integrate the closed-loop
     // system.
+    // if(setpoint->mode.z != modeDisable)
     if(hasOverflowed)
     {
       actuatorThrust = 36000.0f;
-
-      // p_z_mocap += ((float)(1.0f/POSITION_RATE) * v_z_mocap);
-
-      // p_z = p_z_mocap;
-      // v_z = v_z_mocap;
 
       p_z += ((float)(1.0f/POSITION_RATE) * v_z);
     }
     else
     {
       actuatorThrust = 1000.0f * (50.0f * (p_z_des - p_z) - 25.0f * (v_z)) + 36000.0f;
-      
-      // p_z_mocap += ((float)(1.0f/POSITION_RATE) * v_z_mocap);
-      // v_z_mocap += ((float)(1.0f/POSITION_RATE) * (-11.662f*(p_z_mocap-p_z_des) -5.831f*v_z_mocap));
-
-      // p_z = p_z_mocap;
-      // v_z = v_z_mocap;
 
       p_z += ((float)(1.0f/POSITION_RATE) * v_z);
       v_z += ((float)(1.0f/POSITION_RATE) * (-11.662f*(p_z-p_z_des) - 5.831f*v_z));
@@ -411,5 +398,7 @@ LOG_GROUP_STOP(ae483log)
 PARAM_GROUP_START(ae483par)
 PARAM_ADD(PARAM_UINT8,     use_observer,            &use_observer)
 PARAM_ADD(PARAM_UINT8,     reset_observer,          &reset_observer)
+PARAM_ADD(PARAM_UINT8,     Ndiv,                    &Ndiv)
 PARAM_ADD(PARAM_FLOAT,     MOCAP_HZ,                &MOCAP_HZ)
+PARAM_ADD(PARAM_FLOAT,     Lambda,                  &Lambda)
 PARAM_GROUP_STOP(ae483par)
