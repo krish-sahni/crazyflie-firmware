@@ -2,6 +2,12 @@
 
 This project contains the source code for the firmware used in the Crazyflie range of platforms, including the Crazyflie 2.X and the Roadrunner.
 
+## Branch summaries:
+
+- `master` : The master branch for template code. This version of the firmware is mostly template code that can be flashed for normal usage.
+- `direct_feedback_control` : Use Motion capture directly for position and velocity feedback in the tracking controller. The custom control loop simply forwards calls to the default PID controller. This version of the firmware was designed to study the effects of motion capture rates on controller performance.
+- 
+
 ### Crazyflie 1.0 support
 
 The 2017.06 release was the last release with Crazyflie 1.0 support. If you want
