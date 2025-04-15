@@ -23,6 +23,11 @@ static float psi_mocap = 0.0f;
 static float theta_mocap = 0.0f;
 static float phi_mocap = 0.0f;
 
+//new log testing
+static uint8_t log_x;
+static uint8_t log_y;
+static uint8_t log_z;
+
 // Parameters
 static bool use_observer = false;
 static bool reset_observer = false;
@@ -120,6 +125,9 @@ void ae483UpdateWithPosition(positionMeasurement_t *meas)
   //  meas->x         float     x component of external position measurement
   //  meas->y         float     y component of external position measurement
   //  meas->z         float     z component of external position measurement
+  log_x = meas->x;
+  log_y = meas->y;
+  log_z = meas->z;
 }
 
 void ae483UpdateWithPose(poseMeasurement_t *meas)
@@ -163,6 +171,9 @@ void ae483UpdateWithData(const struct AE483Data* data)
   //  data->z         float
   //
   // Exactly what "x", "y", and "z" mean in this context is up to you.
+  log_x = data->x;
+  log_y = data->y;
+  log_z = data->z;
 }
 
 
@@ -331,6 +342,9 @@ LOG_ADD(LOG_FLOAT,       p_z_mocap,              &p_z_mocap)
 LOG_ADD(LOG_FLOAT,       psi_mocap,              &psi_mocap)
 LOG_ADD(LOG_FLOAT,       theta_mocap,            &theta_mocap)
 LOG_ADD(LOG_FLOAT,       phi_mocap,              &phi_mocap)
+LOG_ADD(LOG_UINT8,       foo,                    &log_x)
+LOG_ADD(LOG_UINT8,       bar,                    &log_y)
+LOG_ADD(LOG_UINT8,       baz,                    &log_z) 
 LOG_GROUP_STOP(ae483log)
 
 //                1234567890123456789012345678 <-- max total length
